@@ -1,18 +1,20 @@
-group 'com.posthog.posthog_flutter'
+group 'com.posthog.flutter'
 version '1.0-SNAPSHOT'
 
 buildscript {
+    ext.kotlin_version = '1.8.10'
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.2.2'
+        classpath 'com.android.tools.build:gradle:7.4.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
-rootProject.allprojects {
+allprojects {
     repositories {
         google()
         mavenCentral()
@@ -21,19 +23,51 @@ rootProject.allprojects {
 }
 
 apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
 
 android {
-    compileSdkVersion 34
+    if (project.android.hasProperty("namespace")) {
+        namespace 'com.posthog.flutter'
+    }
+
+    compileSdkVersion flutter.compileSdkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+        languageVersion = "1.8"
+        apiVersion = "1.8"
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+        test.java.srcDirs += 'src/test/kotlin'
+    }
 
     defaultConfig {
-        minSdkVersion 16
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-    }
-    lintOptions {
-        disable 'InvalidPackage'
+        minSdkVersion 21
     }
 
     dependencies {
+        testImplementation 'org.jetbrains.kotlin:kotlin-test'
+        testImplementation 'org.mockito:mockito-core:5.0.0'
+        // + Version 3.21.0 and the versions up to 4.0.0, not including 4.0.0 and higher
         implementation 'com.github.SafeNow100.posthog-android:posthog:a3e235ffb6'
+    }
+
+    testOptions {
+        unitTests.all {
+            useJUnitPlatform()
+
+            testLogging {
+                events "passed", "skipped", "failed", "standardOut", "standardError"
+                outputs.upToDateWhen { false }
+                showStandardStreams = true
+            }
+        }
     }
 }

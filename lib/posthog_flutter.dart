@@ -1,2 +1,7 @@
-export 'package:posthog_flutter/src/posthog.dart';
-export 'package:posthog_flutter/src/posthog_observer.dart';
+library posthog_flutter;
+
+export 'src/posthog.dart';
+export 'src/posthog_config.dart';
+export 'src/posthog_observer.dart';
+export 'src/posthog_widget.dart';
+export 'src/replay/mask/posthog_mask_widget.dart';

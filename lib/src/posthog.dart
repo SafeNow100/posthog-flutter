@@ -1,126 +1,137 @@
-import 'dart:io';
+import 'package:meta/meta.dart';
 
-import 'package:posthog_flutter/src/posthog_platform_interface.dart';
-
-export 'package:posthog_flutter/src/posthog_default_options.dart';
-export 'package:posthog_flutter/src/posthog_observer.dart';
+import 'posthog_config.dart';
+import 'posthog_flutter_platform_interface.dart';
+import 'posthog_observer.dart';
 
 class Posthog {
-  static PosthogPlatform get _posthog => PosthogPlatform.instance;
+  static PosthogFlutterPlatformInterface get _posthog =>
+      PosthogFlutterPlatformInterface.instance;
 
-  static final Posthog _instance = Posthog._internal();
+  static final _instance = Posthog._internal();
+
+  PostHogConfig? _config;
 
   factory Posthog() {
     return _instance;
   }
 
-  String? currentScreen;
+  String? _currentScreen;
+
+  /// Android and iOS only
+  /// Only used for the manual setup
+  /// Requires disabling the automatic init on Android and iOS:
+  /// com.posthog.posthog.AUTO_INIT: false
+  Future<void> setup(PostHogConfig config) {
+    _config = config; // Store the config
+    return _posthog.setup(config);
+  }
+
+  @internal
+  PostHogConfig? get config => _config;
+
+  /// Returns the current screen name (or route name)
+  /// Only returns a value if [PosthogObserver] is used
+  @internal
+  String? get currentScreen => _currentScreen;
 
   Future<void> identify({
     required String userId,
-    Map<String, dynamic>? properties,
-    Map<String, dynamic>? options,
-  }) {
-    return _posthog.identify(
-      userId: userId,
-      properties: properties,
-      options: options,
-    );
-  }
+    Map<String, Object>? userProperties,
+    Map<String, Object>? userPropertiesSetOnce,
+  }) =>
+      _posthog.identify(
+          userId: userId,
+          userProperties: userProperties,
+          userPropertiesSetOnce: userPropertiesSetOnce);
 
   Future<void> capture({
     required String eventName,
-    Map<String, dynamic>? properties,
-    Map<String, dynamic>? options,
+    Map<String, Object>? properties,
   }) {
-    if (properties != null &&
-        !properties.containsKey('\$screen_name') &&
-        this.currentScreen != null) {
-      properties['\$screen_name'] = this.currentScreen;
+    final propertiesCopy = properties == null ? null : {...properties};
+
+    final currentScreen = _currentScreen;
+    if (propertiesCopy != null &&
+        !propertiesCopy.containsKey('\$screen_name') &&
+        currentScreen != null) {
+      propertiesCopy['\$screen_name'] = currentScreen;
     }
     return _posthog.capture(
       eventName: eventName,
-      properties: properties,
-      options: options,
+      properties: propertiesCopy,
     );
   }
 
   Future<void> screen({
     required String screenName,
-    Map<String, dynamic>? properties,
-    Map<String, dynamic>? options,
+    Map<String, Object>? properties,
   }) {
-    if (screenName != '/') {
-      this.currentScreen = screenName;
-    }
+    _currentScreen = screenName;
     return _posthog.screen(
       screenName: screenName,
       properties: properties,
-      options: options,
     );
   }
 
   Future<void> alias({
     required String alias,
-    Map<String, dynamic>? options,
-  }) {
-    return _posthog.alias(
-      alias: alias,
-      options: options,
-    );
-  }
+  }) =>
+      _posthog.alias(
+        alias: alias,
+      );
 
-  Future<String?> get getAnonymousId {
-    return _posthog.getAnonymousId;
-  }
+  Future<String> getDistinctId() => _posthog.getDistinctId();
 
-  Future<void> reset() {
-    return _posthog.reset();
-  }
+  Future<void> reset() => _posthog.reset();
 
-  Future<void> disable() {
-    return _posthog.disable();
-  }
+  Future<void> disable() => _posthog.disable();
 
-  Future<void> enable() {
-    return _posthog.enable();
-  }
+  Future<void> enable() => _posthog.enable();
 
-  Future<void> debug(bool enabled) {
-    if (Platform.isAndroid) {
-      throw Exception('Debug flag cannot be dynamically set on Android.\n'
-          'Add to AndroidManifest and avoid calling this method when Platform.isAndroid.');
-    }
+  Future<bool> isOptOut() => _posthog.isOptOut();
 
-    return _posthog.debug(enabled);
-  }
+  Future<void> debug(bool enabled) => _posthog.debug(enabled);
 
-  Future<void> setContext(Map<String, dynamic> context) {
-    return _posthog.setContext(context);
-  }
+  Future<void> register(String key, Object value) =>
+      _posthog.register(key, value);
 
-  Future<bool?> isFeatureEnabled(String key) {
-    return _posthog.isFeatureEnabled(key);
-  }
+  Future<void> unregister(String key) => _posthog.unregister(key);
 
-  Future<void> reloadFeatureFlags() {
-    return _posthog.reloadFeatureFlags();
-  }
+  Future<bool> isFeatureEnabled(String key) => _posthog.isFeatureEnabled(key);
+
+  Future<void> reloadFeatureFlags() => _posthog.reloadFeatureFlags();
 
   Future<void> group({
     required String groupType,
     required String groupKey,
-    required Map<String, dynamic> groupProperties,
-  }) {
-    return _posthog.group(
+    Map<String, Object>? groupProperties,
+  }) =>
+      _posthog.group(
         groupType: groupType,
         groupKey: groupKey,
-        groupProperties: groupProperties);
+        groupProperties: groupProperties,
+      );
+
+  Future<Object?> getFeatureFlag(String key) =>
+      _posthog.getFeatureFlag(key: key);
+
+  Future<Object?> getFeatureFlagPayload(String key) =>
+      _posthog.getFeatureFlagPayload(key: key);
+
+  Future<void> flush() => _posthog.flush();
+
+  /// Closes the PostHog SDK and cleans up resources.
+  ///
+  /// Note: Please note that after calling close(), surveys will not be rendered until the SDK is re-initialized and the next navigation event occurs.
+  Future<void> close() {
+    _config = null;
+    _currentScreen = null;
+    PosthogObserver.clearCurrentContext();
+    return _posthog.close();
   }
 
-  Future<void> flush() {
-    return _posthog.flush();
-  }
+  Future<String?> getSessionId() => _posthog.getSessionId();
 
   Posthog._internal();
 }
